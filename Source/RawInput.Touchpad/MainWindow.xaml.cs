@@ -65,10 +65,10 @@ namespace RawInput.Touchpad
 			{
 				case TouchpadHelper.WM_INPUT:
 					var contacts = TouchpadHelper.ParseInput(lParam);
-					TouchpadContacts = string.Join(Environment.NewLine, contacts.Select(x => x.ToString()));
+					TouchpadContacts = contacts?.Length.ToString() ?? "0";
 
 					_log.Add("---");
-					_log.Add(TouchpadContacts);
+					_log.Add($"Contacts: {TouchpadContacts}");
 					break;
 			}
 			return IntPtr.Zero;

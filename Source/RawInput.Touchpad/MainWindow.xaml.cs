@@ -11,6 +11,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace RawInput.Touchpad
 {
@@ -35,10 +36,18 @@ namespace RawInput.Touchpad
 		public MainWindow()
 		{
 			InitializeComponent();
+			
+			// Timer to detect when all contacts are lifted
+			_noContactTimer = new DispatcherTimer
+			{
+				Interval = TimeSpan.FromMilliseconds(100) // Check every 100ms
+			};
+			_noContactTimer.Tick += OnNoContactTimer;
 		}
 
 		private HwndSource _targetSource;
 		private readonly List<string> _log = new();
+		private DispatcherTimer _noContactTimer;
 
 		protected override void OnSourceInitialized(EventArgs e)
 		{
@@ -65,13 +74,34 @@ namespace RawInput.Touchpad
 			{
 				case TouchpadHelper.WM_INPUT:
 					var contacts = TouchpadHelper.ParseInput(lParam);
-					TouchpadContacts = contacts?.Length.ToString() ?? "0";
-
-					_log.Add("---");
-					_log.Add($"Contacts: {TouchpadContacts}");
+					if (contacts != null && contacts.Length > 0)
+					{
+						TouchpadContacts = string.Join(Environment.NewLine, contacts.Select(x => x.ToString()));
+						_log.Add("---");
+						_log.Add($"Contacts: {contacts.Length}");
+						_log.Add(TouchpadContacts);
+						
+						// Reset timer since we have active contacts
+						_noContactTimer.Stop();
+						_noContactTimer.Start();
+					}
+					else
+					{
+						// No contacts in this message, start timer to clear display
+						_noContactTimer.Start();
+					}
 					break;
 			}
 			return IntPtr.Zero;
+		}
+
+		private void OnNoContactTimer(object sender, EventArgs e)
+		{
+			// Timer elapsed without new contacts, assume all fingers lifted
+			_noContactTimer.Stop();
+			TouchpadContacts = "No contacts (0)";
+			_log.Add("---");
+			_log.Add("No contacts detected");
 		}
 
 		private void Copy_Click(object sender, RoutedEventArgs e)

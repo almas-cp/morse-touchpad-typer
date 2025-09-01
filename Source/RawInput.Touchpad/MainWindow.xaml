@@ -56,6 +56,8 @@
 					   Text="Instructions: Place 2 fingers on touchpad, tap with 3rd finger (short=dot, long=dash)"/>
 			<TextBlock Margin="0,2,0,0" FontSize="10" Foreground="DarkBlue"
 					   Text="App runs in background - minimize to system tray for global operation"/>
+			<TextBlock Margin="0,2,0,0" FontSize="10" Foreground="Red"
+					   Text="⚠ When enabled: Double/triple-click text selection is disabled globally"/>
 		</StackPanel>
 
 		<StackPanel Grid.Row="2" Margin="10,5">

@@ -56,9 +56,15 @@ This application enables you to type morse code using your precision touchpad gl
 - Wait for the character to appear before starting the next one
 - Use the main window to see your current morse sequence in real-time
 
+## Important Notes
+
+⚠️ **Gesture Suppression**: When the morse typer is enabled, double-click and triple-click text selection gestures are disabled globally to prevent interference with morse input. This is automatically restored when you disable the morse typer.
+
 ## Troubleshooting
 
 - Ensure you have a Windows Precision Touchpad
 - Run as administrator if typing doesn't work in some applications
 - Check that "Enable Global Morse Code Typer" is checked
 - Make sure the app is running (check system tray)
+- If text selection isn't working, disable and re-enable the morse typer
+- Close the app completely to restore normal touchpad gestures

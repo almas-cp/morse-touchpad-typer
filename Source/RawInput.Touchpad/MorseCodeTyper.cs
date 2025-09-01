@@ -29,6 +29,7 @@ namespace RawInput.Touchpad
         private readonly StringBuilder _currentSequence = new();
         private readonly HashSet<int> _baseContacts = new();
         private readonly Stopwatch _tapStopwatch = new();
+        private readonly GestureSuppressor _gestureSuppressor;
         
         private bool _isTapping = false;
         private bool _isEnabled = false;
@@ -48,6 +49,7 @@ namespace RawInput.Touchpad
             set 
             { 
                 _isEnabled = value;
+                _gestureSuppressor.IsEnabled = value; // Enable/disable gesture suppression
                 if (!value) Reset();
             } 
         }
@@ -59,6 +61,9 @@ namespace RawInput.Touchpad
             
             _sequenceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(SEQUENCE_TIMEOUT) };
             _sequenceTimer.Tick += OnSequenceTimeout;
+
+            // Initialize gesture suppressor
+            _gestureSuppressor = new GestureSuppressor();
         }
 
         public void ProcessContacts(TouchpadContact[] contacts)
@@ -196,11 +201,176 @@ namespace RawInput.Touchpad
         [DllImport("user32.dll")]
         private static extern bool SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll")]
+        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
         private const uint WM_CHAR = 0x0102;
         private const uint WM_KEYDOWN = 0x0100;
         private const uint WM_KEYUP = 0x0101;
+        
+        private const uint INPUT_KEYBOARD = 1;
+        private const uint KEYEVENTF_UNICODE = 0x0004;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct INPUT
+        {
+            public uint type;
+            public InputUnion u;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct InputUnion
+        {
+            [FieldOffset(0)]
+            public KEYBDINPUT ki;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
 
         private void SendCharacterGlobally(char character)
+        {
+            // Temporarily disable gesture suppression during typing to avoid interference
+            bool wasGestureSuppressionEnabled = _gestureSuppressor.IsEnabled;
+            if (wasGestureSuppressionEnabled)
+            {
+                _gestureSuppressor.IsEnabled = false;
+            }
+
+            try
+            {
+                // Try multiple methods to ensure character gets typed
+                
+                // Method 1: Use virtual key codes for letters (most reliable for A-Z)
+                if (char.IsLetter(character) && SendCharacterUsingVirtualKey(character))
+                    return;
+                
+                // Method 2: Use Unicode SendInput
+                if (SendCharacterUsingSendInput(character))
+                    return;
+                    
+                // Method 3: Use PostMessage as fallback
+                SendCharacterUsingPostMessage(character);
+            }
+            finally
+            {
+                // Re-enable gesture suppression if it was enabled
+                if (wasGestureSuppressionEnabled)
+                {
+                    _gestureSuppressor.IsEnabled = true;
+                }
+            }
+        }
+
+        private bool SendCharacterUsingVirtualKey(char character)
+        {
+            try
+            {
+                char upperChar = char.ToUpper(character);
+                if (upperChar >= 'A' && upperChar <= 'Z')
+                {
+                    ushort vkCode = (ushort)(upperChar - 'A' + 0x41); // A=0x41, B=0x42, etc.
+                    
+                    // Add small delay
+                    System.Threading.Thread.Sleep(10);
+                    
+                    INPUT[] inputs = new INPUT[2];
+                    
+                    // Key down
+                    inputs[0] = new INPUT
+                    {
+                        type = INPUT_KEYBOARD,
+                        u = new InputUnion
+                        {
+                            ki = new KEYBDINPUT
+                            {
+                                wVk = vkCode,
+                                wScan = 0,
+                                dwFlags = 0,
+                                dwExtraInfo = IntPtr.Zero,
+                                time = 0
+                            }
+                        }
+                    };
+                    
+                    // Key up
+                    inputs[1] = new INPUT
+                    {
+                        type = INPUT_KEYBOARD,
+                        u = new InputUnion
+                        {
+                            ki = new KEYBDINPUT
+                            {
+                                wVk = vkCode,
+                                wScan = 0,
+                                dwFlags = KEYEVENTF_KEYUP,
+                                dwExtraInfo = IntPtr.Zero,
+                                time = 0
+                            }
+                        }
+                    };
+
+                    uint result = SendInput(2, inputs, Marshal.SizeOf(typeof(INPUT)));
+                    
+                    // Add delay after sending
+                    System.Threading.Thread.Sleep(10);
+                    
+                    return result == 2;
+                }
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool SendCharacterUsingSendInput(char character)
+        {
+            try
+            {
+                // Add a small delay to ensure the system is ready
+                System.Threading.Thread.Sleep(10);
+                
+                INPUT[] inputs = new INPUT[1];
+                inputs[0] = new INPUT
+                {
+                    type = INPUT_KEYBOARD,
+                    u = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = 0,
+                            wScan = character,
+                            dwFlags = KEYEVENTF_UNICODE,
+                            dwExtraInfo = IntPtr.Zero,
+                            time = 0
+                        }
+                    }
+                };
+
+                uint result = SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT)));
+                
+                // Add another small delay after sending
+                System.Threading.Thread.Sleep(10);
+                
+                return result == 1;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void SendCharacterUsingPostMessage(char character)
         {
             IntPtr foregroundWindow = GetForegroundWindow();
             if (foregroundWindow == IntPtr.Zero) return;
@@ -233,5 +403,10 @@ namespace RawInput.Touchpad
         }
 
         #endregion
+
+        public void Dispose()
+        {
+            _gestureSuppressor?.Dispose();
+        }
     }
 }

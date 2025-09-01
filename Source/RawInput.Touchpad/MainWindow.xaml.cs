@@ -150,7 +150,7 @@ namespace RawInput.Touchpad
 		{
 			_morseTyper.IsEnabled = true;
 			EnableMorseMenuItem.IsChecked = true;
-			LastTypedCharacter = "Morse typer enabled - Place 2 fingers on touchpad, tap with 3rd";
+			LastTypedCharacter = "Morse typer enabled - Text selection gestures suppressed";
 		}
 
 		private void MorseEnabled_Unchecked(object sender, RoutedEventArgs e)
@@ -211,20 +211,21 @@ namespace RawInput.Touchpad
 			{
 				_morseTyper.IsEnabled = true;
 				MorseEnabledCheckBox.IsChecked = true;
-				LastTypedCharacter = "Morse typer enabled globally";
+				LastTypedCharacter = "Morse typer enabled - Text selection gestures suppressed";
 			}
 			else
 			{
 				_morseTyper.IsEnabled = false;
 				MorseEnabledCheckBox.IsChecked = false;
 				CurrentMorseSequence = "";
-				LastTypedCharacter = "Morse typer disabled";
+				LastTypedCharacter = "Morse typer disabled - Text selection restored";
 			}
 		}
 
 		private void Exit_Click(object sender, RoutedEventArgs e)
 		{
 			_isClosing = true;
+			_morseTyper?.Dispose(); // Clean up gesture suppressor
 			TrayIcon.Dispose();
 			Application.Current.Shutdown();
 		}

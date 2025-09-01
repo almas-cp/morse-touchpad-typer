@@ -1,31 +1,78 @@
 ﻿<Window x:Class="RawInput.Touchpad.MainWindow"
 		xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:tb="http://www.hardcodet.net/taskbar"
 		x:Name="WindowRoot"
-		Title="RawInput Touchpad"
-		Height="260" Width="400" ResizeMode="NoResize">
+		Title="RawInput Touchpad - Morse Typer"
+		Height="360" Width="450" ResizeMode="NoResize"
+		StateChanged="Window_StateChanged"
+		Closing="Window_Closing">
 	<Grid>
 		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="Auto"/>
 			<RowDefinition/>
 		</Grid.RowDefinitions>
 
-		<TextBlock Grid.Row="0" VerticalAlignment="Center"
-				   Margin="10,0">
-			<Run Text="Precision touchpad exists:"/>
-			<Run FontWeight="Bold"
-				 Text="{Binding ElementName=WindowRoot, Path=TouchpadExists}"/>
-		</TextBlock>
+		<tb:TaskbarIcon x:Name="TrayIcon"
+						ToolTipText="Morse Code Touchpad Typer"
+						DoubleClickCommand="{Binding ShowWindowCommand}"
+						MenuActivation="RightClick">
+			<tb:TaskbarIcon.ContextMenu>
+				<ContextMenu>
+					<MenuItem Header="Show Window" Click="ShowWindow_Click"/>
+					<MenuItem Header="Enable Morse Typer" x:Name="EnableMorseMenuItem" 
+							  IsCheckable="True" Click="ToggleMorse_Click"/>
+					<Separator/>
+					<MenuItem Header="Exit" Click="Exit_Click"/>
+				</ContextMenu>
+			</tb:TaskbarIcon.ContextMenu>
+		</tb:TaskbarIcon>
 
-		<Button Grid.Row="0"
-				HorizontalAlignment="Right"
-				BorderThickness="0" Padding="8,4"
-				Content="Copy to clipboard"
-				Click="Copy_Click"/>
+		<StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10,5">
+			<TextBlock VerticalAlignment="Center" Margin="0,0,10,0">
+				<Run Text="Precision touchpad exists:"/>
+				<Run FontWeight="Bold"
+					 Text="{Binding ElementName=WindowRoot, Path=TouchpadExists}"/>
+			</TextBlock>
+			<Button BorderThickness="0" Padding="8,4"
+					Content="Copy to clipboard"
+					Click="Copy_Click"/>
+		</StackPanel>
+
+		<StackPanel Grid.Row="1" Margin="10,5">
+			<StackPanel Orientation="Horizontal">
+				<CheckBox x:Name="MorseEnabledCheckBox" 
+						  Content="Enable Global Morse Code Typer" 
+						  VerticalAlignment="Center"
+						  Checked="MorseEnabled_Checked"
+						  Unchecked="MorseEnabled_Unchecked"/>
+				<TextBlock Margin="10,0,0,0" VerticalAlignment="Center" 
+						   FontSize="10" Foreground="Green"
+						   Text="(Works in any text field system-wide)"/>
+			</StackPanel>
+			<TextBlock Margin="0,5,0,0" FontSize="11" Foreground="Gray"
+					   Text="Instructions: Place 2 fingers on touchpad, tap with 3rd finger (short=dot, long=dash)"/>
+			<TextBlock Margin="0,2,0,0" FontSize="10" Foreground="DarkBlue"
+					   Text="App runs in background - minimize to system tray for global operation"/>
+		</StackPanel>
+
+		<StackPanel Grid.Row="2" Margin="10,5">
+			<TextBlock Text="Current Morse Sequence:" FontWeight="Bold" FontSize="12"/>
+			<TextBlock x:Name="MorseSequenceText" 
+					   FontFamily="Consolas" FontSize="16" 
+					   Text="{Binding ElementName=WindowRoot, Path=CurrentMorseSequence}"
+					   Foreground="Blue" MinHeight="20"/>
+			<TextBlock x:Name="LastTypedText" 
+					   FontSize="11" Foreground="Green"
+					   Text="{Binding ElementName=WindowRoot, Path=LastTypedCharacter}"/>
+		</StackPanel>
 		
-		<TextBlock Grid.Row="1"
+		<TextBlock Grid.Row="3"
 				   Margin="10"
 				   TextWrapping="Wrap"
+				   FontFamily="Consolas" FontSize="10"
 				   Text="{Binding ElementName=WindowRoot, Path=TouchpadContacts}"/>
 	</Grid>
 </Window>

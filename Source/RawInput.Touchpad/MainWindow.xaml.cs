@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -33,6 +34,22 @@ namespace RawInput.Touchpad
 		public static readonly DependencyProperty TouchpadContactsProperty =
 			DependencyProperty.Register("TouchpadContacts", typeof(string), typeof(MainWindow), new PropertyMetadata(null));
 
+		public string CurrentMorseSequence
+		{
+			get { return (string)GetValue(CurrentMorseSequenceProperty); }
+			set { SetValue(CurrentMorseSequenceProperty, value); }
+		}
+		public static readonly DependencyProperty CurrentMorseSequenceProperty =
+			DependencyProperty.Register("CurrentMorseSequence", typeof(string), typeof(MainWindow), new PropertyMetadata(""));
+
+		public string LastTypedCharacter
+		{
+			get { return (string)GetValue(LastTypedCharacterProperty); }
+			set { SetValue(LastTypedCharacterProperty, value); }
+		}
+		public static readonly DependencyProperty LastTypedCharacterProperty =
+			DependencyProperty.Register("LastTypedCharacter", typeof(string), typeof(MainWindow), new PropertyMetadata(""));
+
 		public MainWindow()
 		{
 			InitializeComponent();
@@ -43,11 +60,25 @@ namespace RawInput.Touchpad
 				Interval = TimeSpan.FromMilliseconds(100) // Check every 100ms
 			};
 			_noContactTimer.Tick += OnNoContactTimer;
+
+			// Initialize morse code typer
+			_morseTyper = new MorseCodeTyper();
+			_morseTyper.MorseSequenceUpdated += OnMorseSequenceUpdated;
+			_morseTyper.CharacterTyped += OnCharacterTyped;
+
+			// Start minimized to tray
+			this.WindowState = WindowState.Minimized;
+			this.ShowInTaskbar = false;
+			
+			// Show startup notification
+			LastTypedCharacter = "Morse Touchpad Typer started - Enable to begin typing globally";
 		}
 
 		private HwndSource _targetSource;
 		private readonly List<string> _log = new();
 		private DispatcherTimer _noContactTimer;
+		private MorseCodeTyper _morseTyper;
+		private bool _isClosing = false;
 
 		protected override void OnSourceInitialized(EventArgs e)
 		{
@@ -81,13 +112,19 @@ namespace RawInput.Touchpad
 						_log.Add($"Contacts: {contacts.Length}");
 						_log.Add(TouchpadContacts);
 						
+						// Process contacts for morse code
+						_morseTyper.ProcessContacts(contacts);
+						
 						// Reset timer since we have active contacts
 						_noContactTimer.Stop();
 						_noContactTimer.Start();
 					}
 					else
 					{
-						// No contacts in this message, start timer to clear display
+						// No contacts in this message, process for morse code
+						_morseTyper.ProcessContacts(new TouchpadContact[0]);
+						
+						// Start timer to clear display
 						_noContactTimer.Start();
 					}
 					break;
@@ -107,6 +144,89 @@ namespace RawInput.Touchpad
 		private void Copy_Click(object sender, RoutedEventArgs e)
 		{
 			Clipboard.SetText(string.Join(Environment.NewLine, _log));
+		}
+
+		private void MorseEnabled_Checked(object sender, RoutedEventArgs e)
+		{
+			_morseTyper.IsEnabled = true;
+			EnableMorseMenuItem.IsChecked = true;
+			LastTypedCharacter = "Morse typer enabled - Place 2 fingers on touchpad, tap with 3rd";
+		}
+
+		private void MorseEnabled_Unchecked(object sender, RoutedEventArgs e)
+		{
+			_morseTyper.IsEnabled = false;
+			EnableMorseMenuItem.IsChecked = false;
+			CurrentMorseSequence = "";
+			LastTypedCharacter = "Morse typer disabled";
+		}
+
+		private void OnMorseSequenceUpdated(string sequence)
+		{
+			Dispatcher.Invoke(() =>
+			{
+				CurrentMorseSequence = string.IsNullOrEmpty(sequence) ? "" : $"Current: {sequence}";
+			});
+		}
+
+		private void OnCharacterTyped(char character)
+		{
+			Dispatcher.Invoke(() =>
+			{
+				LastTypedCharacter = $"Typed: '{character}'";
+				_log.Add($"Morse typed: {character}");
+			});
+		}
+
+		private void Window_StateChanged(object sender, EventArgs e)
+		{
+			if (WindowState == WindowState.Minimized)
+			{
+				this.ShowInTaskbar = false;
+				TrayIcon.Visibility = Visibility.Visible;
+			}
+		}
+
+		private void Window_Closing(object sender, CancelEventArgs e)
+		{
+			if (!_isClosing)
+			{
+				e.Cancel = true;
+				this.WindowState = WindowState.Minimized;
+			}
+		}
+
+		private void ShowWindow_Click(object sender, RoutedEventArgs e)
+		{
+			this.Show();
+			this.WindowState = WindowState.Normal;
+			this.ShowInTaskbar = true;
+			this.Activate();
+		}
+
+		private void ToggleMorse_Click(object sender, RoutedEventArgs e)
+		{
+			var menuItem = sender as MenuItem;
+			if (menuItem.IsChecked)
+			{
+				_morseTyper.IsEnabled = true;
+				MorseEnabledCheckBox.IsChecked = true;
+				LastTypedCharacter = "Morse typer enabled globally";
+			}
+			else
+			{
+				_morseTyper.IsEnabled = false;
+				MorseEnabledCheckBox.IsChecked = false;
+				CurrentMorseSequence = "";
+				LastTypedCharacter = "Morse typer disabled";
+			}
+		}
+
+		private void Exit_Click(object sender, RoutedEventArgs e)
+		{
+			_isClosing = true;
+			TrayIcon.Dispose();
+			Application.Current.Shutdown();
 		}
 	}
 }
